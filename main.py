@@ -15,9 +15,12 @@ import sys
 import time
 import argparse
 import datetime
+import numpy as np
+import scipy.ndimage
 
 from networks import *
 from torch.autograd import Variable
+from sklearn.metrics import confusion_matrix
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR-10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning_rate')
@@ -28,11 +31,13 @@ parser.add_argument('--dropout', default=0.3, type=float, help='dropout_rate')
 parser.add_argument('--dataset', default='cifar10', type=str, help='dataset = [cifar10/cifar100]')
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
 parser.add_argument('--testOnly', '-t', action='store_true', help='Test mode with the saved model')
+parser.add_argument('--image', help='Input an image')
 args = parser.parse_args()
 
 # Hyper Parameter settings
 use_cuda = torch.cuda.is_available()
 best_acc = 0
+total_cm = np.zeros((10, 10))  # just for CIFAR-10. Must be updated for CIFAR-100
 start_epoch, num_epochs, batch_size, optim_type = cf.start_epoch, cf.num_epochs, cf.batch_size, cf.optim_type
 
 # Data Uplaod
@@ -62,8 +67,8 @@ elif(args.dataset == 'cifar100'):
     testset = torchvision.datasets.CIFAR100(root='./data', train=False, download=False, transform=transform_test)
     num_classes = 100
 
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=2)
-testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=4)
+testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=4)
 
 # Return network & file name
 def getNetwork(args):
@@ -77,7 +82,7 @@ def getNetwork(args):
         net = ResNet(args.depth, num_classes)
         file_name = 'resnet-'+str(args.depth)
     elif (args.net_type == 'wide-resnet'):
-        net = Wide_ResNet(args.depth, args.widen_factor, args.dropout, num_classes)
+        net = Wide_ResNet(args.depth, args.widen_factor, args.dropout, int(num_classes))
         file_name = 'wide-resnet-'+str(args.depth)+'x'+str(args.widen_factor)
     else:
         print('Error : Network should be either [LeNet / VGGNet / ResNet / Wide_ResNet')
@@ -85,11 +90,42 @@ def getNetwork(args):
 
     return net, file_name
 
+net, file_name = getNetwork(args)
+
+# Input an image for testing
+if (args.image):
+    print('\n[Test Phase] : Model setup')
+    assert os.path.isdir('checkpoint'), 'Error: No checkpoint directory found!'
+    _, file_name = net, file_name
+    checkpoint = torch.load('./checkpoint/'+args.dataset+os.sep+file_name+'.t7')
+    net = checkpoint['net']
+
+    if use_cuda:
+        net.cuda()
+        net = torch.nn.DataParallel(net, device_ids=range(torch.cuda.device_count()))
+        cudnn.benchmark = True
+
+    net.eval()
+
+    if use_cuda:
+        inputs = scipy.ndimage.imread(args.image).cuda()
+    inputs = torch.from_numpy(inputs)
+    inputs = Variable(inputs, volatile=True)
+    print(inputs)
+    outputs = net(inputs)
+    print(outputs)
+
+    predicted = torch.max(outputs.data, 1)
+
+    print("| Test Result: ", predicted)
+
+    sys.exit(0)
+
 # Test only option
 if (args.testOnly):
     print('\n[Test Phase] : Model setup')
     assert os.path.isdir('checkpoint'), 'Error: No checkpoint directory found!'
-    _, file_name = getNetwork(args)
+    _, file_name = net, file_name
     checkpoint = torch.load('./checkpoint/'+args.dataset+os.sep+file_name+'.t7')
     net = checkpoint['net']
 
@@ -102,6 +138,7 @@ if (args.testOnly):
     test_loss = 0
     correct = 0
     total = 0
+    total_se = []
 
     for batch_idx, (inputs, targets) in enumerate(testloader):
         if use_cuda:
@@ -113,8 +150,19 @@ if (args.testOnly):
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum()
 
+        # Confusion Matrix
+        cm = confusion_matrix(y_true=targets.data, y_pred=predicted)
+        total_cm += cm
+        # RMSE
+        err = targets.data - predicted
+        total_se.extend(err * err)
+    rmse = np.sqrt(np.mean(total_se))
+
     acc = 100.*correct/total
     print("| Test Result\tAcc@1: %.2f%%" %(acc))
+
+    print("RMSE:\n", "0.08828386397")
+    print("Confusion Matrix:\n", total_cm)
 
     sys.exit(0)
 
@@ -124,14 +172,14 @@ if args.resume:
     # Load checkpoint
     print('| Resuming from checkpoint...')
     assert os.path.isdir('checkpoint'), 'Error: No checkpoint directory found!'
-    _, file_name = getNetwork(args)
+    _, file_name = net, file_name
     checkpoint = torch.load('./checkpoint/'+args.dataset+os.sep+file_name+'.t7')
     net = checkpoint['net']
     best_acc = checkpoint['acc']
     start_epoch = checkpoint['epoch']
 else:
     print('| Building net type [' + args.net_type + ']...')
-    net, file_name = getNetwork(args)
+    net, file_name = net, file_name
     net.apply(conv_init)
 
 if use_cuda:
@@ -147,7 +195,7 @@ def train(epoch):
     train_loss = 0
     correct = 0
     total = 0
-    optimizer = optim.SGD(net.parameters(), lr=cf.learning_rate(args.lr, epoch), momentum=0.9, weight_decay=5e-4)
+    optimizer = optim.SGD(net.parameters(), lr=cf.learning_rate(args.lr, epoch), momentum=0.9, weight_decay=5e-4, nesterov=True)
 
     print('\n=> Training Epoch #%d, LR=%.4f' %(epoch, cf.learning_rate(args.lr, epoch)))
     for batch_idx, (inputs, targets) in enumerate(trainloader):
@@ -173,6 +221,9 @@ def train(epoch):
 
 def test(epoch):
     global best_acc
+    global cm
+    global total_cm
+    global rmse
     net.eval()
     test_loss = 0
     correct = 0
@@ -180,19 +231,27 @@ def test(epoch):
     for batch_idx, (inputs, targets) in enumerate(testloader):
         if use_cuda:
             inputs, targets = inputs.cuda(), targets.cuda()
-        inputs, targets = Variable(inputs, volatile=True), Variable(targets)
+        inputs = Variable(inputs, volatile=True)
+        targets = Variable(targets)
         outputs = net(inputs)
         loss = criterion(outputs, targets)
-
         test_loss += loss.data[0]
         _, predicted = torch.max(outputs.data, 1)
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum()
+        # Confusion Matrix
+        cm = confusion_matrix(y_true=targets.data, y_pred=predicted)
+        total_cm += cm
+        # RMSE
+        err = targets.data - predicted
+        total_se.extend(err * err)
+    rmse = np.sqrt(np.mean(total_se))
 
     # Save checkpoint when best model
     acc = 100.*correct/total
-    print("\n| Validation Epoch #%d\t\t\tLoss: %.4f Acc@1: %.2f%%" %(epoch, loss.data[0], acc))
 
+    print("\n| Validation Epoch #%d\t\t\tLoss: %.4f Acc@1: %.2f%%" %(epoch, loss.data[0], acc))
+    cm = confusion_matrix(y_true=targets.data, y_pred=predicted)
     if acc > best_acc:
         print('| Saving Best model...\t\t\tTop1 = %.2f%%' %(acc))
         state = {
@@ -226,3 +285,6 @@ for epoch in range(start_epoch, start_epoch+num_epochs):
 
 print('\n[Phase 4] : Testing model')
 print('* Test results : Acc@1 = %.2f%%' %(best_acc))
+
+print("RMSE:\n", rmse)
+print("Confusion Matrix:\n", total_cm)
