@@ -25,6 +25,7 @@ from torch.autograd import Variable
 from sklearn.metrics import confusion_matrix
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR-10 Training')
+parser.add_argument('--root_dir', default='/data/gilad/logs/log_XXXX', type=str, help='path to root dir')
 parser.add_argument('--lr', default=0.1, type=float, help='learning_rate')
 parser.add_argument('--net_type', default='wide-resnet', type=str, help='model')
 parser.add_argument('--depth', default=28, type=int, help='depth of model')
@@ -35,6 +36,8 @@ parser.add_argument('--resume', '-r', action='store_true', help='resume from che
 parser.add_argument('--testOnly', '-t', action='store_true', help='Test mode with the saved model')
 parser.add_argument('--image', help='Input an image')
 args = parser.parse_args()
+
+checkpoint_dir = os.path.join(args.root_dir, 'checkpoint')
 
 # Hyper Parameter settings
 use_cuda = torch.cuda.is_available()
@@ -93,13 +96,14 @@ def getNetwork(args):
     return net, file_name
 
 net, file_name = getNetwork(args)
+checkpoint_file = os.path.join(checkpoint_dir, args.dataset, file_name+'.t7')
 
 # Input an image for testing
 if (args.image):
     print('\n[Test Phase] : Model setup')
-    assert os.path.isdir('checkpoint'), 'Error: No checkpoint directory found!'
+    assert os.path.isdir(checkpoint_dir), 'Error: No checkpoint directory found!'
     _, file_name = net, file_name
-    checkpoint = torch.load('./checkpoint/'+args.dataset+os.sep+file_name+'.t7')
+    checkpoint = torch.load(checkpoint_file)
     net = checkpoint['net']
 
     if use_cuda:
@@ -126,9 +130,9 @@ if (args.image):
 # Test only option
 if (args.testOnly):
     print('\n[Test Phase] : Model setup')
-    assert os.path.isdir('checkpoint'), 'Error: No checkpoint directory found!'
+    assert os.path.isdir(checkpoint_dir), 'Error: No checkpoint directory found!'
     _, file_name = net, file_name
-    checkpoint = torch.load('./checkpoint/'+args.dataset+os.sep+file_name+'.t7')
+    checkpoint = torch.load(checkpoint_file)
     net = checkpoint['net']
 
     if use_cuda:
@@ -173,9 +177,9 @@ print('\n[Phase 2] : Model setup')
 if args.resume:
     # Load checkpoint
     print('| Resuming from checkpoint...')
-    assert os.path.isdir('checkpoint'), 'Error: No checkpoint directory found!'
+    assert os.path.isdir(checkpoint_dir), 'Error: No checkpoint directory found!'
     _, file_name = net, file_name
-    checkpoint = torch.load('./checkpoint/'+args.dataset+os.sep+file_name+'.t7')
+    checkpoint = torch.load(checkpoint_file)
     net = checkpoint['net']
     best_acc = checkpoint['acc']
     start_epoch = checkpoint['epoch']
@@ -261,12 +265,12 @@ def test(epoch):
                 'acc':acc,
                 'epoch':epoch,
         }
-        if not os.path.isdir('checkpoint'):
-            os.mkdir('checkpoint')
-        save_point = './checkpoint/'+args.dataset+os.sep
+        if not os.path.isdir(checkpoint_dir):
+            os.makedirs(checkpoint_dir)
+        save_point = os.path.join(checkpoint_dir, args.dataset)
         if not os.path.isdir(save_point):
-            os.mkdir(save_point)
-        torch.save(state, save_point+file_name+'.t7')
+            os.makedirs(save_point)
+        torch.save(state, os.path.join(save_point, file_name+'.t7'))
         best_acc = acc
 
 print('\n[Phase 3] : Training model')
