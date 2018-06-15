@@ -154,7 +154,7 @@ if (args.testOnly):
 
         _, predicted = torch.max(outputs.data, 1)
         total += targets.size(0)
-        correct += predicted.eq(targets.data).cpu().sum()
+        correct += predicted.eq(targets.data).cpu().sum().float()
 
         # Confusion Matrix
         cm = confusion_matrix(y_true=targets.data, y_pred=predicted)
@@ -217,12 +217,12 @@ def train(epoch):
         train_loss += loss.data[0]
         _, predicted = torch.max(outputs.data, 1)
         total += targets.size(0)
-        correct += predicted.eq(targets.data).cpu().sum()
+        correct += predicted.eq(targets.data).cpu().sum().float()
 
         sys.stdout.write('\r')
         sys.stdout.write('| Epoch [%3d/%3d] Iter[%3d/%3d]\t\tLoss: %.4f Acc@1: %.3f%%'
                 %(epoch, num_epochs, batch_idx+1,
-                    (len(trainset)//batch_size)+1, loss.data[0], 100.*correct/total))
+                    (len(trainset)//batch_size)+1, loss.data[0], 100.0*correct/total))
         sys.stdout.flush()
 
 def test(epoch):
@@ -244,7 +244,7 @@ def test(epoch):
         test_loss += loss.data[0]
         _, predicted = torch.max(outputs.data, 1)
         total += targets.size(0)
-        correct += predicted.eq(targets.data).cpu().sum()
+        correct += predicted.eq(targets.data).cpu().sum().float()
         # Confusion Matrix
         cm = confusion_matrix(y_true=targets.data, y_pred=predicted)
         total_cm += cm
@@ -254,7 +254,7 @@ def test(epoch):
     rmse = np.sqrt(np.mean(total_se))
 
     # Save checkpoint when best model
-    acc = 100.*correct/total
+    acc = 100.0*correct/total
 
     print("\n| Validation Epoch #%d\t\t\tLoss: %.4f Acc@1: %.2f%%" %(epoch, loss.data[0], acc))
     cm = confusion_matrix(y_true=targets.data, y_pred=predicted)
