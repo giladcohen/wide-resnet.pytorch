@@ -26,6 +26,7 @@ from sklearn.metrics import confusion_matrix
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR-10 Training')
 parser.add_argument('--root_dir', default='/data/gilad/logs/log_XXXX', type=str, help='path to root dir')
+parser.add_argument('--data_dir', default='/data/dataset/cifar10', type=str, help='path to data dir')
 parser.add_argument('--lr', default=0.1, type=float, help='learning_rate')
 parser.add_argument('--net_type', default='wide-resnet', type=str, help='model')
 parser.add_argument('--depth', default=28, type=int, help='depth of model')
@@ -62,14 +63,14 @@ transform_test = transforms.Compose([
 if(args.dataset == 'cifar10'):
     print("| Preparing CIFAR-10 dataset...")
     sys.stdout.write("| ")
-    trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform_train)
-    testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform_test)
+    trainset = torchvision.datasets.CIFAR10(root=args.data_dir, train=True, download=True, transform=transform_train)
+    testset = torchvision.datasets.CIFAR10(root=args.data_dir, train=False, download=False, transform=transform_test)
     num_classes = 10
 elif(args.dataset == 'cifar100'):
     print("| Preparing CIFAR-100 dataset...")
     sys.stdout.write("| ")
-    trainset = torchvision.datasets.CIFAR100(root='./data', train=True, download=True, transform=transform_train)
-    testset = torchvision.datasets.CIFAR100(root='./data', train=False, download=False, transform=transform_test)
+    trainset = torchvision.datasets.CIFAR100(root=args.data_dir, train=True, download=True, transform=transform_train)
+    testset = torchvision.datasets.CIFAR100(root=args.data_dir, train=False, download=False, transform=transform_test)
     num_classes = 100
 
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=4)
@@ -234,6 +235,7 @@ def test(epoch):
     test_loss = 0
     correct = 0
     total = 0
+    total_se = []
     for batch_idx, (inputs, targets) in enumerate(testloader):
         if use_cuda:
             inputs, targets = inputs.cuda(), targets.cuda()
