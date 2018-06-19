@@ -198,8 +198,9 @@ if use_cuda:
 criterion = nn.CrossEntropyLoss()
 
 def criterion2(outputs1, outputs2):
-    out1 = outputs1.view(128, -1)
-    out2 = outputs2.view(128, -1)
+    batch_size = outputs1.shape[0]
+    out1 = outputs1.view(batch_size, -1)
+    out2 = outputs2.view(batch_size, -1)
     std1 = out1.std(dim=1)
     std2 = out2.std(dim=1)
     # l1_loss = nn.L1Loss()
@@ -254,8 +255,10 @@ def test(epoch):
             inputs, targets = inputs.cuda(), targets.cuda()
         inputs = Variable(inputs, volatile=True)
         targets = Variable(targets)
-        outputs = net(inputs)
-        loss = criterion(outputs, targets)
+        outputs, outputs1, outputs2 = net(inputs)
+        loss1 = criterion(outputs, targets)
+        loss2 = criterion2(outputs1, outputs2)
+        loss = loss1 + 1.0 * loss2
 
         test_loss += loss.data[0]
         _, predicted = torch.max(outputs.data, 1)
