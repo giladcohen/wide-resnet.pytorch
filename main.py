@@ -36,6 +36,7 @@ parser.add_argument('--dataset', default='cifar10', type=str, help='dataset = [c
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
 parser.add_argument('--testOnly', '-t', action='store_true', help='Test mode with the saved model')
 parser.add_argument('--image', help='Input an image')
+parser.add_argument('--var_loss', action='store_true', help='Use the new variance loss')
 args = parser.parse_args()
 
 checkpoint_dir = os.path.join(args.root_dir, 'checkpoint')
@@ -88,7 +89,7 @@ def getNetwork(args):
         net = ResNet(args.depth, num_classes)
         file_name = 'resnet-'+str(args.depth)
     elif (args.net_type == 'wide-resnet'):
-        net = Wide_ResNet(args.depth, args.widen_factor, args.dropout, int(num_classes))
+        net = Wide_ResNet(args.depth, args.widen_factor, args.dropout, int(num_classes), args.var_loss)
         file_name = 'wide-resnet-'+str(args.depth)+'x'+str(args.widen_factor)
     else:
         print('Error : Network should be either [LeNet / VGGNet / ResNet / Wide_ResNet')
@@ -196,6 +197,16 @@ if use_cuda:
 
 criterion = nn.CrossEntropyLoss()
 
+def criterion2(outputs1, outputs2):
+    out1 = outputs1.view(128, -1)
+    out2 = outputs2.view(128, -1)
+    std1 = out1.std(dim=1)
+    std2 = out2.std(dim=1)
+    # l1_loss = nn.L1Loss()
+    # loss = l1_loss(std1, std2)
+    loss = torch.sum((std1 - std2)**2) / std1.data.nelement()
+    return loss
+
 # Training
 def train(epoch):
     net.train()
@@ -210,8 +221,10 @@ def train(epoch):
             inputs, targets = inputs.cuda(), targets.cuda() # GPU settings
         optimizer.zero_grad()
         inputs, targets = Variable(inputs), Variable(targets)
-        outputs = net(inputs)               # Forward Propagation
-        loss = criterion(outputs, targets)  # Loss
+        outputs, outputs1, outputs2 = net(inputs)               # Forward Propagation
+        loss1 = criterion(outputs, targets)  # Loss
+        loss2 = criterion2(outputs1, outputs2)
+        loss = loss1 + 1.0 * loss2
         loss.backward()  # Backward Propagation
         optimizer.step() # Optimizer update
 
@@ -243,6 +256,7 @@ def test(epoch):
         targets = Variable(targets)
         outputs = net(inputs)
         loss = criterion(outputs, targets)
+
         test_loss += loss.data[0]
         _, predicted = torch.max(outputs.data, 1)
         total += targets.size(0)

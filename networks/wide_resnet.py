@@ -42,9 +42,10 @@ class wide_basic(nn.Module):
         return out
 
 class Wide_ResNet(nn.Module):
-    def __init__(self, depth, widen_factor, dropout_rate, num_classes):
+    def __init__(self, depth, widen_factor, dropout_rate, num_classes, var_loss=False):
         super(Wide_ResNet, self).__init__()
         self.in_planes = 16
+        self.var_loss = var_loss
 
         assert ((depth-4)%6 ==0), 'Wide-resnet depth should be 6n+4'
         n = (depth-4)/6
@@ -78,9 +79,11 @@ class Wide_ResNet(nn.Module):
         out = F.relu(self.bn1(out))
         out = F.avg_pool2d(out, 8)
         out = out.view(out.size(0), -1)
+        out1 = out
         out = self.linear(out)
+        out2 = out
 
-        return out
+        return out, out1, out2
 
 if __name__ == '__main__':
     net=Wide_ResNet(28, 10, 0.3, 10)
