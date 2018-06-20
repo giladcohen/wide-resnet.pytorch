@@ -44,7 +44,6 @@ checkpoint_dir = os.path.join(args.root_dir, 'checkpoint')
 # Hyper Parameter settings
 use_cuda = torch.cuda.is_available()
 best_acc = 0
-total_cm = np.zeros((10, 10))  # just for CIFAR-10. Must be updated for CIFAR-100
 start_epoch, num_epochs, batch_size, optim_type = cf.start_epoch, cf.num_epochs, cf.batch_size, cf.optim_type
 
 # Data Uplaod
@@ -77,6 +76,7 @@ elif(args.dataset == 'cifar100'):
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=4)
 testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=4)
 
+total_cm = np.zeros((num_classes, num_classes))
 # Return network & file name
 def getNetwork(args):
     if (args.net_type == 'lenet'):
