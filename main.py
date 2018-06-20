@@ -266,9 +266,11 @@ def test(epoch):
         _, predicted = torch.max(outputs.data, 1)
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum().float()
-        # Confusion Matrix
-        cm = confusion_matrix(y_true=targets.data, y_pred=predicted)
-        total_cm += cm
+
+        if args.dataset == 'cifar10':
+            # Confusion Matrix
+            cm = confusion_matrix(y_true=targets.data, y_pred=predicted)
+            total_cm += cm
         # RMSE
         err = targets.data - predicted
         total_se.extend(err * err)
@@ -278,7 +280,8 @@ def test(epoch):
     acc = 100.0*correct/total
 
     print("\n| Validation Epoch #%d\t\t\tLoss: %.4f Acc@1: %.2f%%" %(epoch, loss.data[0], acc))
-    cm = confusion_matrix(y_true=targets.data, y_pred=predicted)
+    if args.dataset == 'cifar10':
+        cm = confusion_matrix(y_true=targets.data, y_pred=predicted)
     if acc > best_acc:
         print('| Saving Best model...\t\t\tTop1 = %.2f%%' %(acc))
         state = {
@@ -314,4 +317,6 @@ print('\n[Phase 4] : Testing model')
 print('* Test results : Acc@1 = %.2f%%' %(best_acc))
 
 print("RMSE:\n", rmse)
-print("Confusion Matrix:\n", total_cm)
+
+if args.dataset == 'cifar10':
+    print("Confusion Matrix:\n", total_cm)
