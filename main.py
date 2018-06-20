@@ -158,9 +158,10 @@ if (args.testOnly):
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum().float()
 
-        # Confusion Matrix
-        cm = confusion_matrix(y_true=targets.data, y_pred=predicted)
-        total_cm += cm
+        if args.dataset == 'cifar10':
+            # Confusion Matrix
+            cm = confusion_matrix(y_true=targets.data, y_pred=predicted)
+            total_cm += cm
         # RMSE
         err = targets.data - predicted
         total_se.extend(err * err)
@@ -170,7 +171,8 @@ if (args.testOnly):
     print("| Test Result\tAcc@1: %.2f%%" %(acc))
 
     print("RMSE:\n", "0.08828386397")
-    print("Confusion Matrix:\n", total_cm)
+    if args.dataset == 'cifar10':
+        print("Confusion Matrix:\n", total_cm)
 
     sys.exit(0)
 
