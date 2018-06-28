@@ -19,7 +19,7 @@ import argparse
 import datetime
 import numpy as np
 import scipy.ndimage
-
+from losses import losses
 from networks import *
 from torch.autograd import Variable
 from sklearn.metrics import confusion_matrix
@@ -31,12 +31,17 @@ parser.add_argument('--lr', default=0.1, type=float, help='learning_rate')
 parser.add_argument('--net_type', default='wide-resnet', type=str, help='model')
 parser.add_argument('--depth', default=28, type=int, help='depth of model')
 parser.add_argument('--widen_factor', default=10, type=int, help='width of model')
-parser.add_argument('--dropout', default=0.3, type=float, help='dropout_rate')
+parser.add_argument('--dropout', default=0.0, type=float, help='dropout_rate')
 parser.add_argument('--dataset', default='cifar10', type=str, help='dataset = [cifar10/cifar100]')
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
 parser.add_argument('--testOnly', '-t', action='store_true', help='Test mode with the saved model')
 parser.add_argument('--image', help='Input an image')
-parser.add_argument('--var_loss', action='store_true', help='Use the new variance loss')
+parser.add_argument('--loss_criterion', default=2, type=int, help='Which loss to use')
+parser.add_argument('--reg', default=1, type=int, help='regularization_factor')
+
+# map of losses:
+# 1: my loss: L2 norm between the input STD and output STD, calculated for the entire layer, not over the batch
+# 2: Raja's loss, calculating E and Var over the batch and aim for E=0 and Var=1
 args = parser.parse_args()
 
 checkpoint_dir = os.path.join(args.root_dir, 'checkpoint')
@@ -89,7 +94,7 @@ def getNetwork(args):
         net = ResNet(args.depth, num_classes)
         file_name = 'resnet-'+str(args.depth)
     elif (args.net_type == 'wide-resnet'):
-        net = Wide_ResNet(args.depth, args.widen_factor, args.dropout, int(num_classes), args.var_loss)
+        net = Wide_ResNet(args.depth, args.widen_factor, args.dropout, int(num_classes))
         file_name = 'wide-resnet-'+str(args.depth)+'x'+str(args.widen_factor)
     else:
         print('Error : Network should be either [LeNet / VGGNet / ResNet / Wide_ResNet')
@@ -197,9 +202,9 @@ if use_cuda:
     net = torch.nn.DataParallel(net, device_ids=range(torch.cuda.device_count()))
     cudnn.benchmark = True
 
-criterion = nn.CrossEntropyLoss()
+criterion  = nn.CrossEntropyLoss()
 
-def criterion2(outputs1, outputs2):
+def criterion1(outputs1, outputs2):
     batch_size = outputs1.shape[0]
     out1 = outputs1.view(batch_size, -1)
     out2 = outputs2.view(batch_size, -1)
@@ -208,6 +213,15 @@ def criterion2(outputs1, outputs2):
     # l1_loss = nn.L1Loss()
     # loss = l1_loss(std1, std2)
     loss = torch.sum((std1 - std2)**2) / std1.data.nelement()
+    return loss
+
+def regularization(pre_layer, post_layer, params):
+    if args.loss_criterion == 1:
+        loss = criterion1(pre_layer, post_layer)
+    elif args.loss_criterion == 2:
+        loss = losses.criterion2(params)
+    else:
+        raise AssertionError("args.loss_criterion must be within [1:2] but got {}".format(args.loss_criterion))
     return loss
 
 # Training
@@ -224,10 +238,10 @@ def train(epoch):
             inputs, targets = inputs.cuda(), targets.cuda() # GPU settings
         optimizer.zero_grad()
         inputs, targets = Variable(inputs), Variable(targets)
-        outputs, outputs1, outputs2 = net(inputs)               # Forward Propagation
-        loss1 = criterion(outputs, targets)  # Loss
-        loss2 = criterion2(outputs1, outputs2)
-        loss = loss1 + 1.0 * loss2
+        outputs, pre_layer, post_layer = net(inputs) # Forward Propagation
+        loss1 = criterion(outputs, targets)          # Loss
+        loss2 = regularization(pre_layer, post_layer, net.parameters())
+        loss = loss1 + args.reg * loss2
         loss.backward()  # Backward Propagation
         optimizer.step() # Optimizer update
 
@@ -257,10 +271,10 @@ def test(epoch):
             inputs, targets = inputs.cuda(), targets.cuda()
         inputs = Variable(inputs, volatile=True)
         targets = Variable(targets)
-        outputs, outputs1, outputs2 = net(inputs)
+        outputs, pre_layer, post_layer = net(inputs)  # Forward Propagation
         loss1 = criterion(outputs, targets)
-        loss2 = criterion2(outputs1, outputs2)
-        loss = loss1 + 1.0 * loss2
+        loss2 = regularization(pre_layer, post_layer, net.parameters())
+        loss = loss1 + args.reg * loss2
 
         test_loss += loss.data[0]
         _, predicted = torch.max(outputs.data, 1)
