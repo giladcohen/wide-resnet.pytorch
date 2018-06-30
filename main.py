@@ -11,6 +11,7 @@ import config as cf
 
 import torchvision
 import torchvision.transforms as transforms
+from tensorboardX import SummaryWriter
 
 import os
 import sys
@@ -37,13 +38,13 @@ parser.add_argument('--resume', '-r', action='store_true', help='resume from che
 parser.add_argument('--testOnly', '-t', action='store_true', help='Test mode with the saved model')
 parser.add_argument('--image', help='Input an image')
 parser.add_argument('--loss_criterion', default=2, type=int, help='Which loss to use')
-parser.add_argument('--reg', default=1, type=int, help='regularization_factor')
+parser.add_argument('--reg', default=0.0005, type=float, help='regularization_factor')
 
 # map of losses:
 # 1: my loss: L2 norm between the input STD and output STD, calculated for the entire layer, not over the batch
 # 2: Raja's loss, calculating E and Var over the batch and aim for E=0 and Var=1
 args = parser.parse_args()
-
+writer = SummaryWriter(log_dir=args.root_dir)
 checkpoint_dir = os.path.join(args.root_dir, 'checkpoint')
 
 # Hyper Parameter settings
@@ -82,6 +83,8 @@ trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuff
 testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=4)
 
 total_cm = np.zeros((num_classes, num_classes))
+iters_in_epoch = np.ceil(len(trainset)/batch_size)
+
 # Return network & file name
 def getNetwork(args):
     if (args.net_type == 'lenet'):
@@ -250,10 +253,16 @@ def train(epoch):
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum().float()
 
+        acc = 100.0*correct/total
+
+        iter = (epoch - 1) * iters_in_epoch + batch_idx
+        writer.add_scalar('train/accuracy', acc, iter)
+        writer.add_scalar('train/loss', loss.data[0], iter)
+
         sys.stdout.write('\r')
         sys.stdout.write('| Epoch [%3d/%3d] Iter[%3d/%3d]\t\tLoss: %.4f Acc@1: %.3f%%'
                 %(epoch, num_epochs, batch_idx+1,
-                    (len(trainset)//batch_size)+1, loss.data[0], 100.0*correct/total))
+                    (len(trainset)//batch_size)+1, loss.data[0], acc))
         sys.stdout.flush()
 
 def test(epoch):
@@ -292,6 +301,9 @@ def test(epoch):
 
     # Save checkpoint when best model
     acc = 100.0*correct/total
+    iter = (epoch - 1) * iters_in_epoch
+    writer.add_scalar('test/accuracy', acc, iter)
+    writer.add_scalar('test/loss', loss.data[0], iter)
 
     print("\n| Validation Epoch #%d\t\t\tLoss: %.4f Acc@1: %.2f%%" %(epoch, loss.data[0], acc))
     if args.dataset == 'cifar10':
@@ -334,3 +346,7 @@ print("RMSE:\n", rmse)
 
 if args.dataset == 'cifar10':
     print("Confusion Matrix:\n", total_cm)
+
+# export scalar data to JSON for external processing
+writer.export_scalars_to_json(os.path.join(args.root_dir, "all_scalars.json"))
+writer.close()
