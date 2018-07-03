@@ -209,6 +209,7 @@ if use_cuda:
     cudnn.benchmark = True
 
 criterion  = nn.CrossEntropyLoss()
+utils.misc.print_model_parameters(net)
 
 def criterion1(outputs1, outputs2):
     batch_size = outputs1.shape[0]
@@ -249,8 +250,6 @@ def train(epoch):
         loss1 = criterion(outputs, targets)          # Loss
         loss2 = regularization(pre_layer, post_layer, net.parameters())
         loss = loss1 + loss2
-
-        utils.misc.print_model_parameters(net)
 
         loss.backward()  # Backward Propagation
         optimizer.step() # Optimizer update

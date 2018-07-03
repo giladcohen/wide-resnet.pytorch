@@ -14,7 +14,8 @@ def conv_init(m):
     classname = m.__class__.__name__
     if classname.find('Conv') != -1:
         init.xavier_uniform_(m.weight, gain=np.sqrt(2))
-        init.constant_(m.bias, 0)
+        if m.bias is not None:
+            init.constant_(m.bias, 0)
     elif classname.find('BatchNorm') != -1:
         init.constant_(m.weight, 1)
         init.constant_(m.bias, 0)
@@ -33,7 +34,7 @@ class wide_basic(nn.Module):
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != planes:
             self.shortcut = nn.Sequential(
-                nn.Conv2d(in_planes, planes, kernel_size=1, stride=stride, bias=True),
+                nn.Conv2d(in_planes, planes, kernel_size=1, stride=stride, bias=not self.use_bn),
             )
 
     def forward(self, x):
@@ -49,7 +50,7 @@ class wide_basic(nn.Module):
         return out
 
 class Wide_ResNet(nn.Module):
-    def __init__(self, depth, widen_factor, dropout_rate, num_classes, use_bn=True):
+    def __init__(self, depth, widen_factor, dropout_rate, num_classes, use_bn):
         super(Wide_ResNet, self).__init__()
         self.in_planes = 16
         self.use_bn = use_bn
@@ -73,7 +74,7 @@ class Wide_ResNet(nn.Module):
         layers = []
 
         for stride in strides:
-            layers.append(block(self.in_planes, planes, dropout_rate, stride))
+            layers.append(block(self.in_planes, planes, dropout_rate, stride, self.use_bn))
             self.in_planes = planes
 
         return nn.Sequential(*layers)
