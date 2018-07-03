@@ -8,6 +8,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 import config as cf
+import utils.misc
 
 import torchvision
 import torchvision.transforms as transforms
@@ -39,6 +40,8 @@ parser.add_argument('--testOnly', '-t', action='store_true', help='Test mode wit
 parser.add_argument('--image', help='Input an image')
 parser.add_argument('--loss_criterion', default=2, type=int, help='Which loss to use')
 parser.add_argument('--reg', default=0.0005, type=float, help='regularization_factor')
+parser.add_argument('--batch_norm', '-bn', action='store_true', help='Use batch normalization in the architecture')
+
 
 # map of losses:
 # 1: my loss: L2 norm between the input STD and output STD, calculated for the entire layer, not over the batch
@@ -97,7 +100,7 @@ def getNetwork(args):
         net = ResNet(args.depth, num_classes)
         file_name = 'resnet-'+str(args.depth)
     elif (args.net_type == 'wide-resnet'):
-        net = Wide_ResNet(args.depth, args.widen_factor, args.dropout, int(num_classes))
+        net = Wide_ResNet(args.depth, args.widen_factor, args.dropout, int(num_classes), args.batch_norm)
         file_name = 'wide-resnet-'+str(args.depth)+'x'+str(args.widen_factor)
     else:
         print('Error : Network should be either [LeNet / VGGNet / ResNet / Wide_ResNet')
@@ -225,6 +228,7 @@ def regularization(pre_layer, post_layer, params):
         loss = losses.criterion2(params)
     else:
         raise AssertionError("args.loss_criterion must be within [1:2] but got {}".format(args.loss_criterion))
+    loss *= args.reg
     return loss
 
 # Training
@@ -244,11 +248,14 @@ def train(epoch):
         outputs, pre_layer, post_layer = net(inputs) # Forward Propagation
         loss1 = criterion(outputs, targets)          # Loss
         loss2 = regularization(pre_layer, post_layer, net.parameters())
-        loss = loss1 + args.reg * loss2
+        loss = loss1 + loss2
+
+        utils.misc.print_model_parameters(net)
+
         loss.backward()  # Backward Propagation
         optimizer.step() # Optimizer update
 
-        train_loss += loss.data[0]
+        train_loss += loss.item()
         _, predicted = torch.max(outputs.data, 1)
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum().float()
@@ -257,12 +264,14 @@ def train(epoch):
 
         iter = (epoch - 1) * iters_in_epoch + batch_idx
         writer.add_scalar('train/accuracy', acc, iter)
-        writer.add_scalar('train/loss', loss.data[0], iter)
+        writer.add_scalar('train/loss1', loss1.item(), iter)
+        writer.add_scalar('train/loss2', loss2.item(), iter)
+        writer.add_scalar('train/loss', loss.item(), iter)
 
         sys.stdout.write('\r')
         sys.stdout.write('| Epoch [%3d/%3d] Iter[%3d/%3d]\t\tLoss: %.4f Acc@1: %.3f%%'
                 %(epoch, num_epochs, batch_idx+1,
-                    (len(trainset)//batch_size)+1, loss.data[0], acc))
+                    (len(trainset)//batch_size)+1, loss.item(), acc))
         sys.stdout.flush()
 
 def test(epoch):
@@ -283,9 +292,9 @@ def test(epoch):
         outputs, pre_layer, post_layer = net(inputs)  # Forward Propagation
         loss1 = criterion(outputs, targets)
         loss2 = regularization(pre_layer, post_layer, net.parameters())
-        loss = loss1 + args.reg * loss2
+        loss = loss1 + loss2
 
-        test_loss += loss.data[0]
+        test_loss += loss.item()
         _, predicted = torch.max(outputs.data, 1)
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum().float()
@@ -301,11 +310,13 @@ def test(epoch):
 
     # Save checkpoint when best model
     acc = 100.0*correct/total
-    iter = (epoch - 1) * iters_in_epoch
+    iter = epoch * iters_in_epoch
     writer.add_scalar('test/accuracy', acc, iter)
-    writer.add_scalar('test/loss', loss.data[0], iter)
+    writer.add_scalar('test/loss1', loss1.item(), iter)
+    writer.add_scalar('test/loss2', loss2.item(), iter)
+    writer.add_scalar('test/loss', loss.item(), iter)
 
-    print("\n| Validation Epoch #%d\t\t\tLoss: %.4f Acc@1: %.2f%%" %(epoch, loss.data[0], acc))
+    print("\n| Validation Epoch #%d\t\t\tLoss: %.4f Acc@1: %.2f%%" %(epoch, loss.item(), acc))
     if args.dataset == 'cifar10':
         cm = confusion_matrix(y_true=targets.data, y_pred=predicted)
     if acc > best_acc:
