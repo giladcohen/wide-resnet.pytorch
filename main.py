@@ -29,7 +29,7 @@ from sklearn.metrics import confusion_matrix
 parser = argparse.ArgumentParser(description='PyTorch CIFAR-10 Training')
 parser.add_argument('--root_dir', default='/data/gilad/logs/log_XXXX', type=str, help='path to root dir')
 parser.add_argument('--data_dir', default='/data/dataset/cifar10', type=str, help='path to data dir')
-parser.add_argument('--lr', default=0.1, type=float, help='learning_rate')
+parser.add_argument('--lr', default=0.001, type=float, help='learning_rate')
 parser.add_argument('--net_type', default='wide-resnet', type=str, help='model')
 parser.add_argument('--depth', default=28, type=int, help='depth of model')
 parser.add_argument('--widen_factor', default=10, type=int, help='width of model')
@@ -39,9 +39,10 @@ parser.add_argument('--resume', '-r', action='store_true', help='resume from che
 parser.add_argument('--testOnly', '-t', action='store_true', help='Test mode with the saved model')
 parser.add_argument('--image', help='Input an image')
 parser.add_argument('--loss_criterion', default=2, type=int, help='Which loss to use')
-parser.add_argument('--reg', default=0.0005, type=float, help='regularization_factor')
+parser.add_argument('--reg1', default=0.0005, type=float, help='regularization_factor for E_loss')
+parser.add_argument('--reg2', default=0.0005, type=float, help='regularization_factor for V_loss')
 parser.add_argument('--batch_norm', '-bn', action='store_true', help='Use batch normalization in the architecture')
-
+# parser.add_argument('--optimizer', default='adam', type=str, help='optimizer = [sgd, adam]')
 
 # map of losses:
 # 1: my loss: L2 norm between the input STD and output STD, calculated for the entire layer, not over the batch
@@ -226,11 +227,11 @@ def regularization(pre_layer, post_layer, params):
     if args.loss_criterion == 1:
         loss = criterion1(pre_layer, post_layer)
     elif args.loss_criterion == 2:
-        loss = losses.criterion2(params)
+        E_loss, V_loss = losses.criterion2(params)
     else:
         raise AssertionError("args.loss_criterion must be within [1:2] but got {}".format(args.loss_criterion))
-    loss *= args.reg
-    return loss
+    loss = args.reg1 * E_loss + args.reg2 * V_loss
+    return loss, args.reg1 * E_loss, args.reg2 * V_loss  # return components for printing
 
 # Training
 def train(epoch):
@@ -238,7 +239,13 @@ def train(epoch):
     train_loss = 0
     correct = 0
     total = 0
-    optimizer = optim.SGD(net.parameters(), lr=cf.learning_rate(args.lr, epoch), momentum=0.9, weight_decay=5e-4, nesterov=True)
+
+    if optim_type == 'SGD':
+        optimizer = optim.SGD(net.parameters(), lr=cf.learning_rate(args.lr, epoch), momentum=0.9, weight_decay=5e-4, nesterov=True)
+    elif optim_type == 'ADAM':
+        optimizer = optim.Adam(net.parameters(), lr=args.lr, weight_decay=5e-4)
+    else:
+        raise AssertionError("Unknown optimizer name: {}".format(optim_type))
 
     print('\n=> Training Epoch #%d, LR=%.4f' %(epoch, cf.learning_rate(args.lr, epoch)))
     for batch_idx, (inputs, targets) in enumerate(trainloader):
@@ -248,7 +255,7 @@ def train(epoch):
         inputs, targets = Variable(inputs), Variable(targets)
         outputs, pre_layer, post_layer = net(inputs) # Forward Propagation
         loss1 = criterion(outputs, targets)          # Loss
-        loss2 = regularization(pre_layer, post_layer, net.parameters())
+        loss2, loss2_e, loss2_v = regularization(pre_layer, post_layer, net.named_parameters())
         loss = loss1 + loss2
 
         loss.backward()  # Backward Propagation
@@ -265,6 +272,8 @@ def train(epoch):
         writer.add_scalar('train/accuracy', acc, iter)
         writer.add_scalar('train/loss1', loss1.item(), iter)
         writer.add_scalar('train/loss2', loss2.item(), iter)
+        writer.add_scalar('train/loss2_e', loss2_e.item(), iter)
+        writer.add_scalar('train/loss2_v', loss2_v.item(), iter)
         writer.add_scalar('train/loss', loss.item(), iter)
 
         sys.stdout.write('\r')
@@ -290,7 +299,7 @@ def test(epoch):
         targets = Variable(targets)
         outputs, pre_layer, post_layer = net(inputs)  # Forward Propagation
         loss1 = criterion(outputs, targets)
-        loss2 = regularization(pre_layer, post_layer, net.parameters())
+        loss2, loss2_e, loss2_v = regularization(pre_layer, post_layer, net.named_parameters())
         loss = loss1 + loss2
 
         test_loss += loss.item()
@@ -313,6 +322,8 @@ def test(epoch):
     writer.add_scalar('test/accuracy', acc, iter)
     writer.add_scalar('test/loss1', loss1.item(), iter)
     writer.add_scalar('test/loss2', loss2.item(), iter)
+    writer.add_scalar('train/loss2_e', loss2_e.item(), iter)
+    writer.add_scalar('train/loss2_v', loss2_v.item(), iter)
     writer.add_scalar('test/loss', loss.item(), iter)
 
     print("\n| Validation Epoch #%d\t\t\tLoss: %.4f Acc@1: %.2f%%" %(epoch, loss.item(), acc))
