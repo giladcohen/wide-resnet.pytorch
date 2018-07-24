@@ -80,8 +80,6 @@ class Wide_ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
-        pre_layer  = []
-        post_layer = []
         out = self.conv1(x)
         out = self.layer1(out)
         out = self.layer2(out)
@@ -93,7 +91,7 @@ class Wide_ResNet(nn.Module):
         out = out.view(out.size(0), -1)
         out = self.linear(out)
 
-        return out, pre_layer, post_layer
+        return out
 
 if __name__ == '__main__':
     net=Wide_ResNet(28, 10, 0.3, 10)

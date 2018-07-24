@@ -7,6 +7,37 @@ from torch.autograd import Variable
 from collections import OrderedDict
 import numpy as np
 
+def criterion1(net):
+    e_net = net.e_net
+    v_net = net.v_net
+    l1_loss = torch.nn.L1Loss(size_average=False)  #TODO(gilad): try also size_average=True
+
+    E_loss = OrderedDict()
+    V_loss = OrderedDict()
+
+    all_keys = e_net.keys()
+    for i, key in enumerate(all_keys):
+        if key is 'image':
+            # don't calculate loss for the input
+            assert i == 0
+            continue
+
+        # E loss
+        e1 = e_net[all_keys[i-1]]
+        e2 = e_net[all_keys[i]]
+        e_diff = e2-e1
+        ideal_e = torch.zeros_like(e_diff)
+        E_loss[key] = l1_loss(e_diff, ideal_e)
+
+        # V loss
+        v1 = v_net[all_keys[i-1]]
+        v2 = v_net[all_keys[i]]
+        v_diff = v2-v1
+        ideal_v = torch.zeros_like(v_diff)
+        V_loss[key] = l1_loss(v_diff, ideal_v)
+
+    return E_loss, V_loss
+
 def criterion2_v0(params):
     loss_conv   = 0.0
     loss_linear = 0.0
@@ -68,3 +99,13 @@ def criterion2(params):
         ideal_var_w = ideal_var * torch.ones_like(l2norm_w)
         V_loss += l1_loss(l2norm_w, ideal_var_w)
     return E_loss, V_loss
+
+def rescale_loss_dict(loss_dict, rescale_dict):
+    """
+    :param loss_dict: dictionary of losses
+    :param rescale_dict: dictionaries of weight scaling with the same keys
+    :return: None. Updates the loss_dict
+    """
+    all_keys = loss_dict.keys()
+    for key in all_keys:
+        loss_dict[key] *= rescale_dict[key]
