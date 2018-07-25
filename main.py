@@ -29,7 +29,7 @@ from sklearn.metrics import confusion_matrix
 parser = argparse.ArgumentParser(description='PyTorch CIFAR-10 Training')
 parser.add_argument('--root_dir', default='/data/gilad/logs/log_XXXX', type=str, help='path to root dir')
 parser.add_argument('--data_dir', default='/data/dataset/cifar10', type=str, help='path to data dir')
-parser.add_argument('--lr', default=0.1, type=float, help='learning_rate')
+parser.add_argument('--lr', default=0.001, type=float, help='learning_rate')
 parser.add_argument('--net_type', default='wide-resnet', type=str, help='model')
 parser.add_argument('--depth', default=28, type=int, help='depth of model')
 parser.add_argument('--widen_factor', default=10, type=int, help='width of model')
@@ -288,8 +288,11 @@ def train(epoch):
         writer.add_scalar('train/loss2_e', e_loss.item(), iter)
         writer.add_scalar('train/loss2_v', v_loss.item(), iter)
         writer.add_scalar('train/loss', loss.item(), iter)
-        save_to_tensorboard(E_loss, 'train/E_loss/', writer, iter)
-        save_to_tensorboard(V_loss, 'train/V_loss/', writer, iter)
+        save_to_tensorboard(net.e_net, 'train/e_net/' , writer, iter)
+        save_to_tensorboard(net.v_net, 'train/v_net/' , writer, iter)
+        save_to_tensorboard(V_loss   , 'train/V_loss/', writer, iter)
+        save_to_tensorboard(E_loss   , 'train/E_loss/', writer, iter)
+        save_to_tensorboard(V_loss   , 'train/V_loss/', writer, iter)
 
         sys.stdout.write('\r')
         sys.stdout.write('| Epoch [%3d/%3d] Iter[%3d/%3d]\t\tLoss: %.4f Acc@1: %.3f%%'
@@ -340,8 +343,10 @@ def test(epoch):
     writer.add_scalar('test/loss2_e', e_loss.item(), iter)
     writer.add_scalar('test/loss2_v', v_loss.item(), iter)
     writer.add_scalar('test/loss', loss.item(), iter)
-    save_to_tensorboard(E_loss, 'test/E_loss/', writer, iter)
-    save_to_tensorboard(V_loss, 'test/V_loss/', writer, iter)
+    save_to_tensorboard(net.e_net, 'test/e_net/' , writer, iter)
+    save_to_tensorboard(net.v_net, 'test/v_net/' , writer, iter)
+    save_to_tensorboard(E_loss   , 'test/E_loss/', writer, iter)
+    save_to_tensorboard(V_loss   , 'test/V_loss/', writer, iter)
 
     print("\n| Validation Epoch #%d\t\t\tLoss: %.4f Acc@1: %.2f%%" %(epoch, loss.item(), acc))
     if args.dataset == 'cifar10':

@@ -32,7 +32,7 @@ e_loss_scales = {'conv1_out'   : 1.0,
                  'layer3.1_out': 1.0,
                  'layer3.2_out': 1.0,
                  'layer3.3_out': 1.0}
-e_loss_scales = dict((key, 0.0001 * value) for key, value in e_loss_scales.iteritems())
+e_loss_scales = dict((key, 1.0 * value) for key, value in e_loss_scales.iteritems())
 
 v_loss_scales = {'conv1_out'   : 1.0,
                  'layer1.0_out': 1.0,
@@ -47,7 +47,7 @@ v_loss_scales = {'conv1_out'   : 1.0,
                  'layer3.1_out': 1.0,
                  'layer3.2_out': 1.0,
                  'layer3.3_out': 1.0}
-v_loss_scales = dict((key, 0.0001 * value) for key, value in v_loss_scales.iteritems())
+v_loss_scales = dict((key, 1.0 * value) for key, value in v_loss_scales.iteritems())
 
 def learning_rate(init, epoch):
     optim_factor = 0
