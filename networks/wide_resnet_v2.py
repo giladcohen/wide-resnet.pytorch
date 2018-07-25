@@ -106,8 +106,8 @@ class Wide_ResNet(nn.Module):
         :return: None
         """
         x_1d = x.view(x.size(0), -1)
-        self.e_net[name] = torch.mean(x_1d, dim=1)
-        self.v_net[name] = torch.std(x_1d,  dim=1)
+        self.e_net[name]      = torch.mean(x_1d, dim=1)
+        self.v_net[name]      = torch.std(x_1d,  dim=1)
 
     def forward(self, x):
         self._record('image', x)

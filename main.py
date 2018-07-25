@@ -233,17 +233,29 @@ def regularization(net):
     loss = e_loss + v_loss
     return loss, e_loss, v_loss, E_loss, V_loss  # return components for printing
 
-def save_to_tensorboard(loss_dict, prefix, writer, iter):
+def scalar_to_tensorboard(d, prefix, writer, iter):
     """Saving dictionary of loss to tensorboard
-    :param loss_dict: the dictionary of losses
+    :param d: the dictionary of scalars
     :param prefix: prefix of the names
     :param writer: tensorboard writer
     :param iter: iteration in training
     :return: None
     """
-    for key in loss_dict.keys():
+    for key in d.keys():
         name = prefix + '/' + key
-        writer.add_scalar(name, loss_dict[key].item(), iter)
+        writer.add_scalar(name, d[key].item(), iter)
+
+def histogram_to_tensorboard(d, prefix, writer, iter):
+    """Saving dictionary of loss to tensorboard
+    :param d: the dictionary of vectors
+    :param prefix: prefix of the names
+    :param writer: tensorboard writer
+    :param iter: iteration in training
+    :return: None
+    """
+    for key in d.keys():
+        name = prefix + '/' + key
+        writer.add_histogram(name, d[key].detach().numpy(), iter)
 
 # Training
 def train(epoch):
@@ -288,11 +300,10 @@ def train(epoch):
         writer.add_scalar('train/loss2_e', e_loss.item(), iter)
         writer.add_scalar('train/loss2_v', v_loss.item(), iter)
         writer.add_scalar('train/loss', loss.item(), iter)
-        save_to_tensorboard(net.e_net, 'train/e_net/' , writer, iter)
-        save_to_tensorboard(net.v_net, 'train/v_net/' , writer, iter)
-        save_to_tensorboard(V_loss   , 'train/V_loss/', writer, iter)
-        save_to_tensorboard(E_loss   , 'train/E_loss/', writer, iter)
-        save_to_tensorboard(V_loss   , 'train/V_loss/', writer, iter)
+        scalar_to_tensorboard(E_loss, 'train/E_loss', writer, iter)
+        scalar_to_tensorboard(V_loss, 'train/V_loss', writer, iter)
+        histogram_to_tensorboard(net.e_net, 'train/e_net', writer, iter)
+        histogram_to_tensorboard(net.v_net, 'train/v_net', writer, iter)
 
         sys.stdout.write('\r')
         sys.stdout.write('| Epoch [%3d/%3d] Iter[%3d/%3d]\t\tLoss: %.4f Acc@1: %.3f%%'
@@ -343,10 +354,10 @@ def test(epoch):
     writer.add_scalar('test/loss2_e', e_loss.item(), iter)
     writer.add_scalar('test/loss2_v', v_loss.item(), iter)
     writer.add_scalar('test/loss', loss.item(), iter)
-    save_to_tensorboard(net.e_net, 'test/e_net/' , writer, iter)
-    save_to_tensorboard(net.v_net, 'test/v_net/' , writer, iter)
-    save_to_tensorboard(E_loss   , 'test/E_loss/', writer, iter)
-    save_to_tensorboard(V_loss   , 'test/V_loss/', writer, iter)
+    scalar_to_tensorboard(E_loss, 'test/E_loss', writer, iter)
+    scalar_to_tensorboard(V_loss, 'test/V_loss', writer, iter)
+    histogram_to_tensorboard(net.e_net, 'test/e_net', writer, iter)
+    histogram_to_tensorboard(net.v_net, 'test/v_net', writer, iter)
 
     print("\n| Validation Epoch #%d\t\t\tLoss: %.4f Acc@1: %.2f%%" %(epoch, loss.item(), acc))
     if args.dataset == 'cifar10':
