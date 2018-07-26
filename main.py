@@ -255,7 +255,7 @@ def histogram_to_tensorboard(d, prefix, writer, iter):
     """
     for key in d.keys():
         name = prefix + '/' + key
-        writer.add_histogram(name, d[key].detach().numpy(), iter)
+        writer.add_histogram(name, d[key].cpu().detach().numpy(), iter)
 
 # Training
 def train(epoch):
