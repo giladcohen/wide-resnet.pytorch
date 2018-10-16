@@ -10,7 +10,7 @@ import numpy as np
 def criterion1(net):
     e_net = net.e_net
     v_net = net.v_net
-    l1_loss = torch.nn.L1Loss(size_average=False)  #TODO(gilad): try also size_average=True
+    l1_loss = torch.nn.L1Loss(size_average=True)  #TODO(gilad): try also size_average=False
 
     E_loss = OrderedDict()
     V_loss = OrderedDict()

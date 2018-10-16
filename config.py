@@ -19,34 +19,34 @@ std = {
 # Only for cifar-10
 classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
-e_loss_scales = {'conv1_out'   : 1.0,
-                 'layer1.0_out': 1.0,
-                 'layer1.1_out': 1.0,
-                 'layer1.2_out': 1.0,
-                 'layer1.3_out': 1.0,
-                 'layer2.0_out': 1.0,
-                 'layer2.1_out': 1.0,
-                 'layer2.2_out': 1.0,
-                 'layer2.3_out': 1.0,
+e_loss_scales = {'conv1_out'   : 0.0,
+                 'layer1.0_out': 0.0,
+                 'layer1.1_out': 0.0,
+                 'layer1.2_out': 0.0,
+                 'layer1.3_out': 0.0,
+                 'layer2.0_out': 0.0,
+                 'layer2.1_out': 0.0,
+                 'layer2.2_out': 0.0,
+                 'layer2.3_out': 0.0,
                  'layer3.0_out': 1.0,
-                 'layer3.1_out': 1.0,
-                 'layer3.2_out': 1.0,
-                 'layer3.3_out': 1.0}
+                 'layer3.1_out': 0.0,
+                 'layer3.2_out': 0.0,
+                 'layer3.3_out': 0.0}
 e_loss_scales = dict((key, 1.0 * value) for key, value in e_loss_scales.iteritems())
 
-v_loss_scales = {'conv1_out'   : 1.0,
-                 'layer1.0_out': 1.0,
-                 'layer1.1_out': 1.0,
-                 'layer1.2_out': 1.0,
-                 'layer1.3_out': 1.0,
-                 'layer2.0_out': 1.0,
-                 'layer2.1_out': 1.0,
-                 'layer2.2_out': 1.0,
-                 'layer2.3_out': 1.0,
+v_loss_scales = {'conv1_out'   : 0.0,
+                 'layer1.0_out': 0.0,
+                 'layer1.1_out': 0.0,
+                 'layer1.2_out': 0.0,
+                 'layer1.3_out': 0.0,
+                 'layer2.0_out': 0.0,
+                 'layer2.1_out': 0.0,
+                 'layer2.2_out': 0.0,
+                 'layer2.3_out': 0.0,
                  'layer3.0_out': 1.0,
-                 'layer3.1_out': 1.0,
-                 'layer3.2_out': 1.0,
-                 'layer3.3_out': 1.0}
+                 'layer3.1_out': 0.0,
+                 'layer3.2_out': 0.0,
+                 'layer3.3_out': 0.0}
 v_loss_scales = dict((key, 1.0 * value) for key, value in v_loss_scales.iteritems())
 
 def learning_rate(init, epoch):
